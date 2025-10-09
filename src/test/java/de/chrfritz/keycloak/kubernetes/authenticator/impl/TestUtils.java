@@ -138,11 +138,31 @@ public class TestUtils {
      * @return the mocked client.
      */
     static ClientModel mockClient(String clientId, String description, boolean enabled) {
+        return mockClient(clientId, description, enabled, new HashMap<>());
+    }
+
+    /**
+     * Create a new client mock with the given information and attributes.
+     *
+     * @param clientId    the client id
+     * @param description the description
+     * @param enabled     should this client be enabled?
+     * @param attributes  client attributes
+     * @return the mocked client.
+     */
+    static ClientModel mockClient(String clientId, String description, boolean enabled, Map<String, String> attributes) {
         ClientModel client = mock(ClientModel.class);
         lenient().when(client.getId()).thenReturn(clientId);
         lenient().when(client.getClientId()).thenReturn(clientId);
         lenient().when(client.getDescription()).thenReturn(description);
         lenient().when(client.isEnabled()).thenReturn(enabled);
+        
+        // Mock getAttribute method
+        lenient().when(client.getAttribute(anyString())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            return attributes.get(key);
+        });
+        
         return client;
     }
 

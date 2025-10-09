@@ -84,7 +84,7 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
             }
 
             // Allow both "issuer" or "token-endpoint" as audience
-            List<String> expectedAudiences = getExpectedAudiences(context, realm);
+            List<String> expectedAudiences = getExpectedAudiences(context, realm, client);
             if (!token.hasAnyAudience(expectedAudiences)) {
                 throw new TokenValidationException(
                     "Token audience doesn't match domain. Expected audiences are any of " + expectedAudiences
@@ -185,7 +185,7 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
         }
     }
 
-    private List<String> getExpectedAudiences(ClientAuthenticationFlowContext context, RealmModel realm) {
+    private List<String> getExpectedAudiences(ClientAuthenticationFlowContext context, RealmModel realm, ClientModel client) {
         String issuerUrl = Urls.realmIssuer(context.getUriInfo().getBaseUri(), realm.getName());
 
         String tokenUrl = OIDCLoginProtocolService.tokenUrl(context.getUriInfo().getBaseUriBuilder())
@@ -198,7 +198,35 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
             .build(realm.getName())
             .toString();
 
-        return List.of(issuerUrl, tokenUrl, parEndpointUrl, backchannelAuthenticationUrl);
+        List<String> audiences = new ArrayList<>();
+        audiences.add(issuerUrl);
+        audiences.add(tokenUrl);
+        audiences.add(parEndpointUrl);
+        audiences.add(backchannelAuthenticationUrl);
+
+        // Add audience from jwks.url attribute (base URL before first '/')
+        String jwksUrl = client.getAttribute("jwks.url");
+        if (jwksUrl != null && !jwksUrl.isEmpty()) {
+            // Extract the base URL by splitting on '/' and taking everything before the path
+            // Format is typically: https://host:port/path
+            // We want to extract: https://host:port
+            int pathStartIndex = jwksUrl.indexOf('/', jwksUrl.indexOf("//") + 2);
+            if (pathStartIndex != -1) {
+                String baseUrl = jwksUrl.substring(0, pathStartIndex);
+                audiences.add(baseUrl);
+            } else {
+                // If no path found, add the whole URL
+                audiences.add(jwksUrl);
+            }
+        }
+
+        // Add audience from jwt.audience.allow attribute
+        String allowedAudience = client.getAttribute("jwt.audience.allow");
+        if (allowedAudience != null && !allowedAudience.isEmpty()) {
+            audiences.add(allowedAudience);
+        }
+
+        return audiences;
     }
 
     @Override

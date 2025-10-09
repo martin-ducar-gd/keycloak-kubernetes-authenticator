@@ -8,7 +8,9 @@ import org.keycloak.authentication.ClientAuthenticationFlowContext;
 import org.keycloak.models.ClientModel;
 
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static de.chrfritz.keycloak.kubernetes.authenticator.impl.KubernetesClientAuthenticator.PROVIDER_ID;
 import static de.chrfritz.keycloak.kubernetes.authenticator.impl.TestUtils.*;
@@ -188,5 +190,79 @@ class KubernetesClientAuthenticatorTest {
 
         assertThat(authenticator.getProtocolAuthenticatorMethods("dummyProtocol"))
             .isEmpty();
+    }
+
+    @Test
+    void test_AuthenticateClient_with_jwks_url_attribute() throws URISyntaxException {
+        // given
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("jwks.url", "https://192.168.5.1:6433/openid/v1/jwks");
+        
+        ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true, attributes);
+        String token = mockToken(EXPECTED_SUBJECT, EXPECTED_ISSUER, "https://192.168.5.1:6433", -1, -1, 60);
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client), token);
+
+        // when
+        authenticator.authenticateClient(context);
+
+        // then
+        verify(context, never()).failure(any(), any());
+        verify(context).success();
+    }
+
+    @Test
+    void test_AuthenticateClient_with_jwt_audience_allow_attribute() throws URISyntaxException {
+        // given
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("jwt.audience.allow", "custom-audience");
+        
+        ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true, attributes);
+        String token = mockToken(EXPECTED_SUBJECT, EXPECTED_ISSUER, "custom-audience", -1, -1, 60);
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client), token);
+
+        // when
+        authenticator.authenticateClient(context);
+
+        // then
+        verify(context, never()).failure(any(), any());
+        verify(context).success();
+    }
+
+    @Test
+    void test_AuthenticateClient_with_both_custom_audiences() throws URISyntaxException {
+        // given
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("jwks.url", "https://k8s-api:6443/openid/v1/jwks");
+        attributes.put("jwt.audience.allow", "another-audience");
+        
+        ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true, attributes);
+        String token = mockToken(EXPECTED_SUBJECT, EXPECTED_ISSUER, "https://k8s-api:6443", -1, -1, 60);
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client), token);
+
+        // when
+        authenticator.authenticateClient(context);
+
+        // then
+        verify(context, never()).failure(any(), any());
+        verify(context).success();
+    }
+
+    @Test
+    void test_AuthenticateClient_with_jwt_audience_allow_matches() throws URISyntaxException {
+        // given
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("jwks.url", "https://k8s-api:6443/openid/v1/jwks");
+        attributes.put("jwt.audience.allow", "another-audience");
+        
+        ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true, attributes);
+        String token = mockToken(EXPECTED_SUBJECT, EXPECTED_ISSUER, "another-audience", -1, -1, 60);
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client), token);
+
+        // when
+        authenticator.authenticateClient(context);
+
+        // then
+        verify(context, never()).failure(any(), any());
+        verify(context).success();
     }
 }
