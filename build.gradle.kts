@@ -5,8 +5,8 @@ plugins {
     jacoco
     `java-library`
     `maven-publish`
-    id("com.palantir.git-version") version "3.1.0" // to compute the project version from Git tags and hashes
-    id("org.sonarqube") version "6.0.1.5171"
+    id("com.palantir.git-version") version "4.0.0" // to compute the project version from Git tags and hashes
+    id("org.sonarqube") version "6.3.1.5724"
 }
 
 repositories {
@@ -14,15 +14,15 @@ repositories {
     mavenCentral()
 }
 
-val keycloakVersion = "26.1.0"
-val lombokVersion = "1.18.36"
-val guavaVersion = "33.4.0-jre"
-val jUnitJupiterVersion = "5.11.4"
-val mockitoJunitVersion = "5.15.2"
-val assertJVersion = "3.27.3"
+val keycloakVersion = "26.4.0"
+val lombokVersion = "1.18.42"
+val guavaVersion = "33.5.0-jre"
+val jUnitJupiterVersion = "5.14.0"
+val mockitoJunitVersion = "5.20.0"
+val assertJVersion = "3.27.6"
 val jakartaWsRsVersion = "3.1.0"
-val jerseyVersion = "3.1.10"
-val commonsCodecVersion = "1.18.0"
+val jerseyVersion = "3.1.11"
+val commonsCodecVersion = "1.19.0"
 dependencies {
     implementation(platform("org.keycloak.bom:keycloak-bom-parent:${keycloakVersion}"))
     implementation(platform("org.keycloak.bom:keycloak-spi-bom:${keycloakVersion}"))
