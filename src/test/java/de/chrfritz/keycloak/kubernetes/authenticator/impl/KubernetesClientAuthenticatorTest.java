@@ -196,6 +196,7 @@ class KubernetesClientAuthenticatorTest {
     void test_AuthenticateClient_with_jwks_url_attribute() throws URISyntaxException {
         // given
         Map<String, String> attributes = new HashMap<>();
+        attributes.put("custom.audience.enabled", "true");
         attributes.put("jwks.url", "https://192.168.5.1:6433/openid/v1/jwks");
         
         ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true, attributes);
@@ -214,6 +215,7 @@ class KubernetesClientAuthenticatorTest {
     void test_AuthenticateClient_with_jwt_audience_allow_attribute() throws URISyntaxException {
         // given
         Map<String, String> attributes = new HashMap<>();
+        attributes.put("custom.audience.enabled", "true");
         attributes.put("jwt.audience.allow", "custom-audience");
         
         ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true, attributes);
@@ -232,6 +234,7 @@ class KubernetesClientAuthenticatorTest {
     void test_AuthenticateClient_with_both_custom_audiences() throws URISyntaxException {
         // given
         Map<String, String> attributes = new HashMap<>();
+        attributes.put("custom.audience.enabled", "true");
         attributes.put("jwks.url", "https://k8s-api:6443/openid/v1/jwks");
         attributes.put("jwt.audience.allow", "another-audience");
         
@@ -251,6 +254,7 @@ class KubernetesClientAuthenticatorTest {
     void test_AuthenticateClient_with_jwt_audience_allow_matches() throws URISyntaxException {
         // given
         Map<String, String> attributes = new HashMap<>();
+        attributes.put("custom.audience.enabled", "true");
         attributes.put("jwks.url", "https://k8s-api:6443/openid/v1/jwks");
         attributes.put("jwt.audience.allow", "another-audience");
         
@@ -264,5 +268,25 @@ class KubernetesClientAuthenticatorTest {
         // then
         verify(context, never()).failure(any(), any());
         verify(context).success();
+    }
+
+    @Test
+    void test_AuthenticateClient_custom_audience_disabled_by_default() throws URISyntaxException {
+        // given
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("jwks.url", "https://k8s-api:6443/openid/v1/jwks");
+        attributes.put("jwt.audience.allow", "custom-audience");
+        // custom.audience.enabled is not set, so it should default to false
+        
+        ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true, attributes);
+        String token = mockToken(EXPECTED_SUBJECT, EXPECTED_ISSUER, "custom-audience", -1, -1, 60);
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client), token);
+
+        // when
+        authenticator.authenticateClient(context);
+
+        // then - should fail because custom audiences are not enabled
+        verify(context).failure(eq(INVALID_CLIENT_CREDENTIALS), any(Response.class));
+        verify(context, never()).success();
     }
 }

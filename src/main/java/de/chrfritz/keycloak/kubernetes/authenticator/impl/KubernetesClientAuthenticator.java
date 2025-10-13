@@ -49,6 +49,7 @@ import static org.keycloak.authentication.AuthenticationFlowError.CLIENT_CREDENT
  */
 public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
     public static final String PROVIDER_ID = "kubernetes-jwt";
+    public static final String CUSTOM_AUDIENCE_ENABLED = "custom.audience.enabled";
 
     @Override
     public void authenticateClient(ClientAuthenticationFlowContext context) {
@@ -161,7 +162,14 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
 
     @Override
     public List<ProviderConfigProperty> getConfigPropertiesPerClient() {
-        return List.of();
+        ProviderConfigProperty customAudienceEnabled = new ProviderConfigProperty();
+        customAudienceEnabled.setName(CUSTOM_AUDIENCE_ENABLED);
+        customAudienceEnabled.setLabel("Enable Custom Audiences");
+        customAudienceEnabled.setType(ProviderConfigProperty.BOOLEAN_TYPE);
+        customAudienceEnabled.setDefaultValue("false");
+        customAudienceEnabled.setHelpText("Enable support for custom JWT audiences from client attributes (jwks.url and jwt.audience.allow)");
+        
+        return List.of(customAudienceEnabled);
     }
 
     @Override
@@ -204,26 +212,31 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
         audiences.add(parEndpointUrl);
         audiences.add(backchannelAuthenticationUrl);
 
-        // Add audience from jwks.url attribute (base URL before first '/')
-        String jwksUrl = client.getAttribute("jwks.url");
-        if (jwksUrl != null && !jwksUrl.isEmpty()) {
-            // Extract the base URL by splitting on '/' and taking everything before the path
-            // Format is typically: https://host:port/path
-            // We want to extract: https://host:port
-            int pathStartIndex = jwksUrl.indexOf('/', jwksUrl.indexOf("//") + 2);
-            if (pathStartIndex != -1) {
-                String baseUrl = jwksUrl.substring(0, pathStartIndex);
-                audiences.add(baseUrl);
-            } else {
-                // If no path found, add the whole URL
-                audiences.add(jwksUrl);
+        // Check if custom audience support is enabled
+        boolean customAudienceEnabled = Boolean.parseBoolean(client.getAttribute(CUSTOM_AUDIENCE_ENABLED));
+        
+        if (customAudienceEnabled) {
+            // Add audience from jwks.url attribute (base URL before first '/')
+            String jwksUrl = client.getAttribute("jwks.url");
+            if (jwksUrl != null && !jwksUrl.isEmpty()) {
+                // Extract the base URL by splitting on '/' and taking everything before the path
+                // Format is typically: https://host:port/path
+                // We want to extract: https://host:port
+                int pathStartIndex = jwksUrl.indexOf('/', jwksUrl.indexOf("//") + 2);
+                if (pathStartIndex != -1) {
+                    String baseUrl = jwksUrl.substring(0, pathStartIndex);
+                    audiences.add(baseUrl);
+                } else {
+                    // If no path found, add the whole URL
+                    audiences.add(jwksUrl);
+                }
             }
-        }
 
-        // Add audience from jwt.audience.allow attribute
-        String allowedAudience = client.getAttribute("jwt.audience.allow");
-        if (allowedAudience != null && !allowedAudience.isEmpty()) {
-            audiences.add(allowedAudience);
+            // Add audience from jwt.audience.allow attribute
+            String allowedAudience = client.getAttribute("jwt.audience.allow");
+            if (allowedAudience != null && !allowedAudience.isEmpty()) {
+                audiences.add(allowedAudience);
+            }
         }
 
         return audiences;
