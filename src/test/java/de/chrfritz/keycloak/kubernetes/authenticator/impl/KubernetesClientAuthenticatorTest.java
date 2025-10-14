@@ -15,6 +15,7 @@ import java.util.Map;
 import static de.chrfritz.keycloak.kubernetes.authenticator.impl.KubernetesClientAuthenticator.PROVIDER_ID;
 import static de.chrfritz.keycloak.kubernetes.authenticator.impl.TestUtils.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertEquals;
 import static org.keycloak.authentication.AuthenticationFlowError.*;
 import static org.keycloak.protocol.oidc.OIDCLoginProtocol.LOGIN_PROTOCOL;
 import static org.keycloak.protocol.oidc.OIDCLoginProtocol.PRIVATE_KEY_JWT;
@@ -251,6 +252,51 @@ class KubernetesClientAuthenticatorTest {
         authenticator.authenticateClient(context);
 
         // then - should fail because custom audiences are not enabled
+        verify(context).failure(eq(INVALID_CLIENT_CREDENTIALS), any(Response.class));
+        verify(context, never()).success();
+    }
+
+    @Test
+    void test_AuthenticateClient_custom_clientid_selection() throws URISyntaxException {
+        // given
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("custom.audience.enabled", "true");
+        attributes.put("use.jwks.url", "true");
+        attributes.put("jwks.url", ALT_TOKEN_ISSUER + "/openid/v1/jwks");
+
+        ClientModel client = mockClient("dummy", EXPECTED_SUBJECT + "@" + ALT_TOKEN_ISSUER, true, attributes);
+        ClientModel client2 = mockClient("dummy2", EXPECTED_SUBJECT + "@" + ALT_TOKEN_ISSUER, true, attributes);
+
+        String token = mockToken(EXPECTED_SUBJECT, ALT_TOKEN_ISSUER, ALT_TOKEN_ISSUER, -1, -1, 60);
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client, client2), token, "dummy2");
+
+        // when
+        authenticator.authenticateClient(context);
+
+        // then - should pass with client2 as selected client id even though both match
+        verify(context, never()).failure(any(), any());
+        verify(context).success();
+        assertEquals("dummy2", context.getClient().getClientId());
+    }
+
+    @Test
+    void test_AuthenticateClient_custom_wrong_clientid() throws URISyntaxException {
+        // given
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("custom.audience.enabled", "true");
+        attributes.put("use.jwks.url", "true");
+        attributes.put("jwks.url", ALT_TOKEN_ISSUER + "/openid/v1/jwks");
+
+        ClientModel client = mockClient("dummy", EXPECTED_SUBJECT + "@" + ALT_TOKEN_ISSUER, true, attributes);
+        ClientModel client2 = mockClient("dummy2", "wrong@" + ALT_TOKEN_ISSUER, true, attributes);
+
+        String token = mockToken(EXPECTED_SUBJECT, ALT_TOKEN_ISSUER, ALT_TOKEN_ISSUER, -1, -1, 60);
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client, client2), token, "dummy2");
+
+        // when
+        authenticator.authenticateClient(context);
+
+        // then - should fail because custom explicit client id does not match
         verify(context).failure(eq(INVALID_CLIENT_CREDENTIALS), any(Response.class));
         verify(context, never()).success();
     }

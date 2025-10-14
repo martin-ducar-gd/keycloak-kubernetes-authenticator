@@ -71,9 +71,19 @@ public class ExtendedJwtClientValidator extends JWTClientValidator {
             return false;
         }
 
+        params = context.getHttpRequest().getDecodedFormParameters();
+
+        String clientId = params.getFirst(OAuth2Constants.CLIENT_ID);
+
+
         String expectedClientIssuerLine = getToken().getSubject() + "@" + getToken().getIssuer();
-        return Arrays.asList(c.getDescription().split("\r\n|\n|\r"))
-            .contains(expectedClientIssuerLine);
+        if (clientId != null && !clientId.equals("")) {
+            return (clientId.equals(c.getClientId() && Arrays.asList(c.getDescription().split("\r\n|\n|\r"))
+                .contains(expectedClientIssuerLine));
+        } else {
+            return Arrays.asList(c.getDescription().split("\r\n|\n|\r"))
+                .contains(expectedClientIssuerLine);
+        }
     }
 
     @Override

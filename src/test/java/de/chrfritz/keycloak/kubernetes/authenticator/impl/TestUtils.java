@@ -73,7 +73,20 @@ public class TestUtils {
      * @throws URISyntaxException should never occur
      */
     static ClientAuthenticationFlowContext mockAuthenticationFlowContext(Collection<ClientModel> clients, String token) throws URISyntaxException {
-        return mockAuthenticationFlowContext(clients, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT, token);
+        return mockAuthenticationFlowContext(clients, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT, token, null);
+    }
+
+    /**
+     * Create a new authentication flow context for jwt assertations
+     *
+     * @param clients the clients stored within the realm
+     * @param token the client assertation type {@link OAuth2Constants}
+     * @param clientId     the client assertation content
+     * @return a new client authentication flow context
+     * @throws URISyntaxException should never occur
+     */
+    static ClientAuthenticationFlowContext mockAuthenticationFlowContext(Collection<ClientModel> clients, String token, String clientId) throws URISyntaxException {
+        return mockAuthenticationFlowContext(clients, OAuth2Constants.CLIENT_ASSERTION_TYPE_JWT, token, clientId);
     }
 
     /**
@@ -82,10 +95,11 @@ public class TestUtils {
      * @param clients               the clients stored within the realm
      * @param clientAssertationType the client assertation type {@link OAuth2Constants}
      * @param clientAssertation     the client assertation content
+     * @param clientId              the client id
      * @return a new client authentication flow context
      * @throws URISyntaxException should never occur
      */
-    static ClientAuthenticationFlowContext mockAuthenticationFlowContext(Collection<ClientModel> clients, String clientAssertationType, String clientAssertation) throws URISyntaxException {
+    static ClientAuthenticationFlowContext mockAuthenticationFlowContext(Collection<ClientModel> clients, String clientAssertationType, String clientAssertation, String clientId) throws URISyntaxException {
         requireNonNull(clients, "clients must not be null.");
 
         ClientAuthenticationFlowContext context = mock(ClientAuthenticationFlowContext.class, Answers.RETURNS_DEEP_STUBS);
@@ -100,12 +114,17 @@ public class TestUtils {
     }
 
     private static void mockHttpRequest(String clientAssertationType, String clientAssertation, ClientAuthenticationFlowContext context) {
+        mockHttpRequest(clientAssertationType, clientAssertation, null, context);
+    }
+
+    private static void mockHttpRequest(String clientAssertationType, String clientAssertation, String clientId, ClientAuthenticationFlowContext context) {
         HttpRequest httpRequest = context.getHttpRequest();
         MultivaluedMap<String, String> parameters = httpRequest.getDecodedFormParameters();
 
         lenient().when(httpRequest.getHttpHeaders().getMediaType()).thenReturn(APPLICATION_FORM_URLENCODED_TYPE);
         when(parameters.getFirst(OAuth2Constants.CLIENT_ASSERTION_TYPE)).thenReturn(clientAssertationType);
         when(parameters.getFirst(OAuth2Constants.CLIENT_ASSERTION)).thenReturn(clientAssertation);
+        when(parameters.getFirst(OAuth2Constants.CLIENT_ID)).thenReturn(clientId);
     }
 
     private static void mockKeycloakSession(ClientAuthenticationFlowContext context) {
