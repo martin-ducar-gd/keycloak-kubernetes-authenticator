@@ -29,9 +29,9 @@ public class ExtendedJwtClientValidator extends JWTClientValidator {
 
     private ClientModel client;
     private final int currentTime;
+    private MultivaluedMap<String, String> lparams;
 
     public ExtendedJwtClientValidator(ClientAuthenticationFlowContext context, String clientAuthenticatorProviderId) {
-        private MultivaluedMap<String, String> lparams;
         super(context, clientAuthenticatorProviderId);
         currentTime = Time.currentTime();
     }
