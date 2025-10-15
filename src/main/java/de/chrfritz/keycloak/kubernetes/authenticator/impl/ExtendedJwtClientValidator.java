@@ -78,7 +78,7 @@ public class ExtendedJwtClientValidator extends JWTClientValidator {
 
         String expectedClientIssuerLine = getToken().getSubject() + "@" + getToken().getIssuer();
         if (clientId != null && !clientId.equals("")) {
-            return (clientId.equals(c.getClientId() && Arrays.asList(c.getDescription().split("\r\n|\n|\r"))
+            return (clientId.equals(c.getClientId()) && Arrays.asList(c.getDescription().split("\r\n|\n|\r"))
                 .contains(expectedClientIssuerLine));
         } else {
             return Arrays.asList(c.getDescription().split("\r\n|\n|\r"))
