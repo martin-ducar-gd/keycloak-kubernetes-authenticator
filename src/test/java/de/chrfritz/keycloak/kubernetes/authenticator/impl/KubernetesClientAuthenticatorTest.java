@@ -15,7 +15,6 @@ import java.util.Map;
 import static de.chrfritz.keycloak.kubernetes.authenticator.impl.KubernetesClientAuthenticator.PROVIDER_ID;
 import static de.chrfritz.keycloak.kubernetes.authenticator.impl.TestUtils.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertEquals;
 import static org.keycloak.authentication.AuthenticationFlowError.*;
 import static org.keycloak.protocol.oidc.OIDCLoginProtocol.LOGIN_PROTOCOL;
 import static org.keycloak.protocol.oidc.OIDCLoginProtocol.PRIVATE_KEY_JWT;
@@ -276,7 +275,7 @@ class KubernetesClientAuthenticatorTest {
         // then - should pass with client2 as selected client id even though both match
         verify(context, never()).failure(any(), any());
         verify(context).success();
-        assertEquals("dummy2", context.getClient().getClientId());
+        assertThat(context.getClient().getClientId()).isEqualTo("dummy2");
     }
 
     @Test

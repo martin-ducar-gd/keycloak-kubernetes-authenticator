@@ -231,6 +231,7 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
                     if (baseUrl.equals(tokenIssuer)) {
                         // Only add allowed audiences if the base URL matches the token issuer
                         audiences.add(baseUrl);
+                        audiences.add("https://kubernetes.default.svc"); // Default audience for in-cluster tokens
                     } else {
                         ServicesLogger.LOGGER.debugf("Token issuer '%s' does not match base URL from jwks.url '%s'", tokenIssuer, baseUrl);
                     }
@@ -238,6 +239,7 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
                     if (jwksUrl.equals(tokenIssuer)) {
                         // Only add allowed audiences if the whole URL matches the token issuer
                         audiences.add(jwksUrl);
+                        audiences.add("https://kubernetes.default.svc"); // Default audience for in-cluster tokens
                     } else {
                         ServicesLogger.LOGGER.debugf("Token issuer '%s' does not match jwks.url '%s'", tokenIssuer, jwksUrl);
                     }
