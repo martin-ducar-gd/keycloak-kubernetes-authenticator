@@ -40,6 +40,7 @@ dependencies {
     testImplementation("org.assertj:assertj-core:${assertJVersion}")
     testImplementation("jakarta.ws.rs:jakarta.ws.rs-api:${jakartaWsRsVersion}")
     testImplementation("org.glassfish.jersey.core:jersey-common:${jerseyVersion}")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
 
     compileOnly("org.projectlombok:lombok:${lombokVersion}")
     annotationProcessor("org.projectlombok:lombok:${lombokVersion}")

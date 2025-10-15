@@ -105,7 +105,19 @@ public class TestUtils {
         ClientAuthenticationFlowContext context = mock(ClientAuthenticationFlowContext.class, Answers.RETURNS_DEEP_STUBS);
         lenient().when(context.getUriInfo().getBaseUri()).thenReturn(new URI("https://localhost:8080/auth/"));
 
-        mockHttpRequest(clientAssertationType, clientAssertation, context);
+        // Add a field to store the client that gets set via setClient()
+        final ClientModel[] clientHolder = new ClientModel[1];
+
+        // Mock setClient to store the client in our holder
+        lenient().doAnswer(invocation -> {
+            clientHolder[0] = invocation.getArgument(0);
+            return null;
+        }).when(context).setClient(any(ClientModel.class));
+
+        // Mock getClient to return the stored client
+        lenient().when(context.getClient()).thenAnswer(invocation -> clientHolder[0]);
+
+        mockHttpRequest(clientAssertationType, clientAssertation, clientId , context);
 
         mockRealmInfo(clients, context);
         mockKeycloakSession(context);
@@ -124,7 +136,7 @@ public class TestUtils {
         lenient().when(httpRequest.getHttpHeaders().getMediaType()).thenReturn(APPLICATION_FORM_URLENCODED_TYPE);
         when(parameters.getFirst(OAuth2Constants.CLIENT_ASSERTION_TYPE)).thenReturn(clientAssertationType);
         when(parameters.getFirst(OAuth2Constants.CLIENT_ASSERTION)).thenReturn(clientAssertation);
-        when(parameters.getFirst(OAuth2Constants.CLIENT_ID)).thenReturn(clientId);
+        lenient().when(parameters.getFirst(OAuth2Constants.CLIENT_ID)).thenReturn(clientId);
     }
 
     private static void mockKeycloakSession(ClientAuthenticationFlowContext context) {

@@ -168,7 +168,7 @@ class KubernetesClientAuthenticatorTest {
     void test_AuthenticateClient_other_client_assertation() throws URISyntaxException {
         // given
         ClientModel client = mockClient("dummy", "system:serviceaccount:dummy:dummy@http://issuer", true);
-        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client), "other", "dummy");
+        ClientAuthenticationFlowContext context = mockAuthenticationFlowContext(List.of(client), "other", "dummy", null);
 
 
         // when
@@ -296,7 +296,7 @@ class KubernetesClientAuthenticatorTest {
         authenticator.authenticateClient(context);
 
         // then - should fail because custom explicit client id does not match
-        verify(context).failure(eq(INVALID_CLIENT_CREDENTIALS), any(Response.class));
+        verify(context).failure(eq(CLIENT_NOT_FOUND), any());
         verify(context, never()).success();
     }
 }
