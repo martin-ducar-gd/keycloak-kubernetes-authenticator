@@ -1,5 +1,6 @@
 package de.chrfritz.keycloak.kubernetes.authenticator.impl;
 
+import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import lombok.Getter;
 import org.keycloak.authentication.ClientAuthenticationFlowContext;
