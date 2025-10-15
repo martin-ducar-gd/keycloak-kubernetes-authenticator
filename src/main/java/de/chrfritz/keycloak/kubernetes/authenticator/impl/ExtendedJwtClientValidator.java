@@ -31,6 +31,7 @@ public class ExtendedJwtClientValidator extends JWTClientValidator {
     private final int currentTime;
 
     public ExtendedJwtClientValidator(ClientAuthenticationFlowContext context, String clientAuthenticatorProviderId) {
+        private MultivaluedMap<String, String> lparams;
         super(context, clientAuthenticatorProviderId);
         currentTime = Time.currentTime();
     }
@@ -71,9 +72,9 @@ public class ExtendedJwtClientValidator extends JWTClientValidator {
             return false;
         }
 
-        params = context.getHttpRequest().getDecodedFormParameters();
+        lparams = context.getHttpRequest().getDecodedFormParameters();
 
-        String clientId = params.getFirst(OAuth2Constants.CLIENT_ID);
+        String clientId = lparams.getFirst(OAuth2Constants.CLIENT_ID);
 
 
         String expectedClientIssuerLine = getToken().getSubject() + "@" + getToken().getIssuer();
