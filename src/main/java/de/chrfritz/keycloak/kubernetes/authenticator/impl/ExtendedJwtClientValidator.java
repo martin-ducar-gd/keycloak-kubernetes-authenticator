@@ -3,6 +3,7 @@ package de.chrfritz.keycloak.kubernetes.authenticator.impl;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
 import lombok.Getter;
+import org.keycloak.OAuth2Constants;
 import org.keycloak.authentication.ClientAuthenticationFlowContext;
 import org.keycloak.authentication.authenticators.client.ClientAuthUtil;
 import org.keycloak.authentication.authenticators.client.JWTClientValidator;
@@ -73,7 +74,7 @@ public class ExtendedJwtClientValidator extends JWTClientValidator {
             return false;
         }
 
-        lparams = context.getHttpRequest().getDecodedFormParameters();
+        lparams = getContext().getHttpRequest().getDecodedFormParameters();
 
         String clientId = lparams.getFirst(OAuth2Constants.CLIENT_ID);
 
