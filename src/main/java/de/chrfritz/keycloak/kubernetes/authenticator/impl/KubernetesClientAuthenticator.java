@@ -232,14 +232,14 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
                         // Only add allowed audiences if the base URL matches the token issuer
                         audiences.add(baseUrl);
                     } else {
-                        ServicesLogger.LOGGER.warningf("Token issuer '%s' does not match base URL from jwks.url '%s'", tokenIssuer, baseUrl);
+                        ServicesLogger.LOGGER.warnf("Token issuer '%s' does not match base URL from jwks.url '%s'", tokenIssuer, baseUrl);
                     }
                 } else {
                     if (jwksUrl.equals(tokenIssuer)) {
                         // Only add allowed audiences if the whole URL matches the token issuer
                         audiences.add(jwksUrl);
                     } else {
-                        ServicesLogger.LOGGER.warningf("Token issuer '%s' does not match jwks.url '%s'", tokenIssuer, jwksUrl);
+                        ServicesLogger.LOGGER.warnf("Token issuer '%s' does not match jwks.url '%s'", tokenIssuer, jwksUrl);
                     }
                     // If no path found, add the whole URL
                 }
