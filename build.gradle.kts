@@ -14,7 +14,7 @@ repositories {
     mavenCentral()
 }
 
-val keycloakVersion = "26.4.0"
+val keycloakVersion = "26.5.6"
 val lombokVersion = "1.18.42"
 val guavaVersion = "33.5.0-jre"
 val jUnitJupiterVersion = "5.14.0"
@@ -36,6 +36,7 @@ dependencies {
     }
 
     testImplementation("org.junit.jupiter:junit-jupiter:${jUnitJupiterVersion}")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.0")
     testImplementation("org.mockito:mockito-junit-jupiter:${mockitoJunitVersion}")
     testImplementation("org.assertj:assertj-core:${assertJVersion}")
     testImplementation("jakarta.ws.rs:jakarta.ws.rs-api:${jakartaWsRsVersion}")
