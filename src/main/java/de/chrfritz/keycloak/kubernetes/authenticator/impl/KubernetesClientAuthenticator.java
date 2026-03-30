@@ -75,10 +75,11 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
             }
 
             String clientDescriptionKey = subject + "@" + token.getIssuer();
+            String explicitClientId = (String) params.getFirst("client_id");
 
             Optional<ClientModel> clientOpt = context.getRealm()
                     .getClientsStream()
-                    .filter(c -> matchesClient(clientDescriptionKey, c))
+                    .filter(c -> matchesClient(clientDescriptionKey, explicitClientId, c))
                     .findFirst();
 
             if (clientOpt.isEmpty()) {
@@ -145,12 +146,21 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
         }
     }
 
-    private static boolean matchesClient(String clientDescriptionKey, ClientModel client) {
+    private static boolean matchesClient(String clientDescriptionKey, String explicitClientId, ClientModel client) {
         if (StringUtil.isNullOrEmpty(client.getDescription())) {
             return false;
         }
-        return Arrays.asList(client.getDescription().split("\r\n|\n|\r"))
+        boolean descriptionMatches = Arrays.asList(client.getDescription().split("\r\n|\n|\r"))
                 .contains(clientDescriptionKey);
+        if (!descriptionMatches) {
+            return false;
+        }
+        // When client_id is explicitly provided, require it to match as well.
+        // This disambiguates when multiple clients share the same service account description.
+        if (explicitClientId != null && !explicitClientId.isEmpty()) {
+            return explicitClientId.equals(client.getClientId());
+        }
+        return true;
     }
 
     private static boolean isTokenSignatureValid(ClientAuthenticationFlowContext context,
