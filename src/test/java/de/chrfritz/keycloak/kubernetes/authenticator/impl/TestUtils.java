@@ -115,6 +115,7 @@ public class TestUtils {
         lenient().when(session.getProvider(any())).thenAnswer(i -> mock(i.getArgument(0, Class.class)));
         lenient().when((Object) session.getProvider(PublicKeyStorageProvider.class)).thenReturn(new TestPublicKeyStorageProvider(keyWrapper));
         lenient().when((Object) session.getProvider(ClientSignatureVerifierProvider.class, Algorithm.RS256)).thenReturn(new AsymmetricClientSignatureVerifierProvider(session, Algorithm.RS256));
+        lenient().when((Object) session.getProvider(SignatureProvider.class, Algorithm.RS256)).thenReturn(new AsymmetricSignatureProvider(session, Algorithm.RS256));
     }
 
     private static void mockRealmInfo(Collection<ClientModel> clients, ClientAuthenticationFlowContext context) {
