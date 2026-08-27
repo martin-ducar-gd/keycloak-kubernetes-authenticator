@@ -1,14 +1,21 @@
 package de.chrfritz.keycloak.kubernetes.authenticator.impl;
 
 import jakarta.ws.rs.core.Response;
+import org.keycloak.Config;
 import org.keycloak.authentication.AuthenticationFlowError;
 import org.keycloak.authentication.ClientAuthenticationFlowContext;
 import org.keycloak.authentication.authenticators.client.AbstractClientAuthenticator;
 import org.keycloak.authentication.authenticators.client.ClientAuthUtil;
+import org.keycloak.crypto.KeyWrapper;
+import org.keycloak.crypto.SignatureProvider;
+import org.keycloak.jose.jws.JWSHeader;
 import org.keycloak.jose.jws.JWSInput;
+import org.keycloak.keys.PublicKeyStorageProvider;
+import org.keycloak.keys.PublicKeyStorageUtils;
 import org.keycloak.keys.loader.PublicKeyStorageManager;
 import org.keycloak.models.AuthenticationExecutionModel;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.protocol.oidc.grants.ciba.CibaGrantType;
@@ -19,11 +26,13 @@ import org.keycloak.services.ServicesLogger;
 import org.keycloak.services.Urls;
 import org.keycloak.utils.StringUtil;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,12 +43,49 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
     public static final String PROVIDER_ID = "kubernetes-jwt";
     public static final String CUSTOM_AUDIENCE_ENABLED = "custom.audience.enabled";
     public static final String JWK_URLS_ENABLED = "use.jwks.url";
+    public static final String TRUSTED_ISSUERS = "trusted-issuers";
 
     private static final AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
             AuthenticationExecutionModel.Requirement.REQUIRED,
             AuthenticationExecutionModel.Requirement.ALTERNATIVE,
             AuthenticationExecutionModel.Requirement.DISABLED
     };
+
+    /** Token issuers this instance accepts, mapped to the JWKS endpoint that signs for them. */
+    private Map<String, String> trustedIssuers = Map.of();
+
+    @Override
+    public void init(Config.Scope config) {
+        trustedIssuers = parseTrustedIssuers(config.get(TRUSTED_ISSUERS, ""));
+    }
+
+    /**
+     * Parses a comma or newline separated list of {@code <issuer>=<jwksUrl>} pairs.
+     *
+     * A DR pair shares one Keycloak database, so a client's own jwks.url can only ever name one
+     * cluster's endpoint. Configuring the issuers here instead lets each instance verify the
+     * service account tokens minted by the cluster it runs in, whichever cluster last rendered
+     * the realm.
+     */
+    static Map<String, String> parseTrustedIssuers(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return Map.of();
+        }
+        Map<String, String> parsed = new LinkedHashMap<>();
+        for (String entry : raw.split("[,\\r\\n]")) {
+            String pair = entry.trim();
+            if (pair.isEmpty()) {
+                continue;
+            }
+            int separator = pair.indexOf('=');
+            if (separator <= 0 || separator == pair.length() - 1) {
+                throw new IllegalArgumentException(
+                        "Expected '<issuer>=<jwksUrl>' in " + TRUSTED_ISSUERS + " but got '" + pair + "'");
+            }
+            parsed.put(pair.substring(0, separator).trim(), pair.substring(separator + 1).trim());
+        }
+        return Map.copyOf(parsed);
+    }
 
     @Override
     public void authenticateClient(ClientAuthenticationFlowContext context) {
@@ -74,12 +120,13 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
                 throw new TokenValidationException("Can't identify client. Subject missing on JWT token");
             }
 
-            String clientDescriptionKey = subject + "@" + token.getIssuer();
+            String issuer = token.getIssuer();
+            String trustedJwksUrl = issuer == null ? null : trustedIssuers.get(issuer);
             String explicitClientId = (String) params.getFirst("client_id");
 
             Optional<ClientModel> clientOpt = context.getRealm()
                     .getClientsStream()
-                    .filter(c -> matchesClient(clientDescriptionKey, explicitClientId, c))
+                    .filter(c -> matchesClient(subject, issuer, trustedJwksUrl != null, explicitClientId, c))
                     .findFirst();
 
             if (clientOpt.isEmpty()) {
@@ -95,19 +142,25 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
 
             context.setClient(client);
 
-            var publicKey = PublicKeyStorageManager.getClientPublicKey(
-                    context.getSession(), client, jws);
-            if (publicKey == null) {
-                Response errorResponse = ClientAuthUtil.errorResponse(
-                        Response.Status.BAD_REQUEST.getStatusCode(),
-                        "invalid_client",
-                        "Unable to load public key");
-                context.failure(AuthenticationFlowError.CLIENT_CREDENTIALS_SETUP_REQUIRED, errorResponse);
-                return;
-            }
+            if (trustedJwksUrl != null) {
+                if (!isTokenSignatureValidForIssuer(context, client, jws, issuer, trustedJwksUrl)) {
+                    throw new TokenValidationException("Signature on JWT token failed validation");
+                }
+            } else {
+                var publicKey = PublicKeyStorageManager.getClientPublicKey(
+                        context.getSession(), client, jws);
+                if (publicKey == null) {
+                    Response errorResponse = ClientAuthUtil.errorResponse(
+                            Response.Status.BAD_REQUEST.getStatusCode(),
+                            "invalid_client",
+                            "Unable to load public key");
+                    context.failure(AuthenticationFlowError.CLIENT_CREDENTIALS_SETUP_REQUIRED, errorResponse);
+                    return;
+                }
 
-            if (!isTokenSignatureValid(context, clientAssertion, client)) {
-                throw new TokenValidationException("Signature on JWT token failed validation");
+                if (!isTokenSignatureValid(context, clientAssertion, client)) {
+                    throw new TokenValidationException("Signature on JWT token failed validation");
+                }
             }
 
             List<String> expectedAudiences = getExpectedAudiences(context, client, token);
@@ -146,13 +199,12 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
         }
     }
 
-    private static boolean matchesClient(String clientDescriptionKey, String explicitClientId, ClientModel client) {
+    private static boolean matchesClient(String subject, String issuer, boolean issuerTrusted,
+                                          String explicitClientId, ClientModel client) {
         if (StringUtil.isNullOrEmpty(client.getDescription())) {
             return false;
         }
-        boolean descriptionMatches = Arrays.asList(client.getDescription().split("\r\n|\n|\r"))
-                .contains(clientDescriptionKey);
-        if (!descriptionMatches) {
+        if (!describesServiceAccount(client.getDescription(), subject, issuer, issuerTrusted)) {
             return false;
         }
         // When client_id is explicitly provided, require it to match as well.
@@ -161,6 +213,68 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
             return explicitClientId.equals(client.getClientId());
         }
         return true;
+    }
+
+    /**
+     * Whether a description line binds the client to the service account presenting the token.
+     *
+     * A line reads {@code <subject>@<issuer>}. The issuer has to match unless this instance was
+     * configured to trust the token's issuer: the members of a DR pair share one Keycloak database
+     * but mint tokens under their own issuer, so the stored line names whichever cluster rendered
+     * the realm last, while the subject is the same on both.
+     */
+    private static boolean describesServiceAccount(String description, String subject, String issuer,
+                                                    boolean issuerTrusted) {
+        for (String line : description.split("\r\n|\n|\r")) {
+            String candidate = line.trim();
+            if (candidate.equals(subject + "@" + issuer)) {
+                return true;
+            }
+            if (issuerTrusted && candidate.startsWith(subject + "@")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Verifies the token against the JWKS endpoint configured for its issuer, bypassing the
+     * client's own key configuration.
+     */
+    private static boolean isTokenSignatureValidForIssuer(ClientAuthenticationFlowContext context,
+                                                          ClientModel client,
+                                                          JWSInput jws,
+                                                          String issuer,
+                                                          String jwksUrl) {
+        try {
+            KeycloakSession session = context.getSession();
+            JWSHeader header = jws.getHeader();
+            String algorithm = header.getRawAlgorithm();
+
+            // Keyed per issuer so the members of a DR pair cannot evict each other's keys.
+            String cacheKey = PublicKeyStorageUtils
+                    .getClientModelCacheKey(context.getRealm().getId(), client.getId()) + "::" + issuer;
+
+            KeyWrapper key = session.getProvider(PublicKeyStorageProvider.class)
+                    .getPublicKey(cacheKey, header.getKeyId(), algorithm,
+                            new JwksUrlPublicKeyLoader(session, issuer, jwksUrl));
+            if (key == null) {
+                throw new TokenValidationException(
+                        "No key with id '" + header.getKeyId() + "' at the JWKS endpoint of issuer '" + issuer + "'");
+            }
+
+            SignatureProvider signatureProvider = session.getProvider(SignatureProvider.class, algorithm);
+            if (signatureProvider == null) {
+                throw new TokenValidationException("Unsupported signature algorithm '" + algorithm + "'");
+            }
+
+            return signatureProvider.verifier(key)
+                    .verify(jws.getEncodedSignatureInput().getBytes(StandardCharsets.UTF_8), jws.getSignature());
+        } catch (TokenValidationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new TokenValidationException("Signature on JWT token failed validation", e);
+        }
     }
 
     private static boolean isTokenSignatureValid(ClientAuthenticationFlowContext context,
