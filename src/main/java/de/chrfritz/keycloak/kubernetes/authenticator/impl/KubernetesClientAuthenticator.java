@@ -282,7 +282,9 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
                                                   ClientModel client) {
         try {
             JsonWebToken decoded = context.getSession().tokens()
-                    .decodeClientJWT(clientAssertion, client, (jose, c) -> {}, JsonWebToken.class);
+                    // Keycloak 26.7 added the trailing allowAlgorithmNone flag; false keeps the
+                    // pre-26.7 behaviour of rejecting "alg: none" assertions.
+                    .decodeClientJWT(clientAssertion, client, (jose, c) -> {}, JsonWebToken.class, false);
             return decoded != null;
         } catch (RuntimeException e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -380,7 +382,7 @@ public class KubernetesClientAuthenticator extends AbstractClientAuthenticator {
     }
 
     @Override
-    public Map<String, Object> getAdapterConfiguration(ClientModel client) {
+    public Map<String, Object> getAdapterConfiguration(KeycloakSession session, ClientModel client) {
         return new HashMap<>();
     }
 
